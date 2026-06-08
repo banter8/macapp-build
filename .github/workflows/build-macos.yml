@@ -1,0 +1,90 @@
+name: Build macOS App
+
+on:
+  push:
+    tags:
+      - 'v*'   # v1.0, v1.1 등 태그 push 시 자동 빌드
+  workflow_dispatch:       # 수동 실행도 가능
+
+jobs:
+  build-macos:
+    runs-on: macos-latest  # GitHub macOS runner (M1/M2, arm64)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install PySide6 pyinstaller
+
+      - name: Download FFmpeg (macOS ARM64)
+        run: |
+          mkdir -p ffmpeg
+          curl -L -o /tmp/ffmpeg.zip "https://evermeet.cx/ffmpeg/ffmpeg/8.1.1/ffmpeg.zip"
+          unzip -o /tmp/ffmpeg.zip -d ffmpeg/
+          chmod +x ffmpeg/ffmpeg
+
+      - name: Build with PyInstaller
+        run: |
+          python -m PyInstaller --clean --onefile --windowed \
+            --name "VideoCutterPro" \
+            --add-data "resources:resources" \
+            --add-binary "ffmpeg/ffmpeg:ffmpeg" \
+            --hidden-import PySide6 \
+            --hidden-import PySide6.QtCore \
+            --hidden-import PySide6.QtGui \
+            --hidden-import PySide6.QtWidgets \
+            --hidden-import PySide6.QtMultimedia \
+            --hidden-import PySide6.QtMultimediaWidgets \
+            main.py
+
+      - name: Create .app bundle
+        run: |
+          mkdir -p "dist/VideoCutterPro.app/Contents/MacOS"
+          mkdir -p "dist/VideoCutterPro.app/Contents/Resources"
+          mv dist/VideoCutterPro "dist/VideoCutterPro.app/Contents/MacOS/"
+          cat > "dist/VideoCutterPro.app/Contents/Info.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>VideoCutterPro</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.videocutterpro.app</string>
+              <key>CFBundleName</key>
+              <string>Video Cutter Pro</string>
+              <key>CFBundleVersion</key>
+              <string>${GITHUB_REF_NAME#v}</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${GITHUB_REF_NAME#v}</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>14.0</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>LSArchitecturePriority</key>
+              <array>
+                  <string>arm64</string>
+              </array>
+          </dict>
+          </plist>
+          EOF
+          chmod +x "dist/VideoCutterPro.app/Contents/MacOS/VideoCutterPro"
+
+      - name: Package .dmg (선택)
+        run: |
+          pip install dmgbuild 2>/dev/null || true
+          # .app 그대로 업로드 (dmg는 생략)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoCutterPro-macOS
+          path: dist/VideoCutterPro.app
+          compression-level: 0
