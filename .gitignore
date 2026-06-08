@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.spec
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# FFmpeg (빌드용, 용량 큼)
+ffmpeg/ffmpeg.exe
+
+# macOS build
+dist_mac/
+build_mac/
